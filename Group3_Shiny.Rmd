@@ -1,0 +1,1180 @@
+---
+title: "Shiny"
+author: "Group 3 - LG09"
+date: "2024-05-24"
+output: html_document
+---
+
+# LIBRARIES
+```{r}
+# install.packages("ggplot2", dependencies = TRUE)
+# install.packages("data.table", dependencies = TRUE)
+# install.packages("tidyr", dependencies = TRUE)
+# install.packages("reshape2", dependencies = TRUE)
+# install.packages("dplyr", dependencies = TRUE)
+# install.packages("plotly", dependencies = TRUE)
+# install.packages("shiny", dependencies = TRUE)
+# install.packages("shinythemes", dependencies = TRUE)
+# install.packages("DT", dependencies = TRUE)
+```
+
+```{r}
+library(stringr)
+library(ggplot2)
+library(data.table)
+library(tidyr)
+library(reshape2)
+library(dplyr)
+library(plotly)
+library(shiny)
+library(shinythemes)
+library(DT)
+```
+
+# DATASET
+```{r}
+df_sleep <- read.csv("Sleep_health_and_lifestyle_dataset.csv", sep=",", header = TRUE)
+```
+
+# DATA PREPARATION
+```{r}
+df_sleep2 <- df_sleep %>% 
+  select(-c(Person.ID))
+    
+df_sleep2$Gender <- df_sleep2$Gender %>%
+  as.factor(.)
+    
+df_sleep2$Occupation <- df_sleep2$Occupation %>% 
+  as.factor(.)
+  
+df_sleep2$BMI.Category <- df_sleep2$BMI.Category %>% 
+  factor(., levels = c("Normal", "Normal Weight", "Overweight", "Obese"))
+  
+df_sleep$Sleep.Disorder <- df_sleep2$Sleep.Disorder %>% 
+  factor(., levels = c("None", "Insomnia", "Sleep Apnea"))
+  
+df_sleep2 <- df_sleep2 %>%
+  mutate(BMI.Category = recode(BMI.Category, "Normal Weight" = "Normal"))
+```
+
+```{r}
+df_sleep_new <- df_sleep2 %>% 
+  separate_wider_delim(Blood.Pressure, delim = "/", names = c("Systolic.Pressure", "Diastolic.Pressure"))
+
+df_sleep_new$Systolic.Pressure <- df_sleep_new$Systolic.Pressure %>% 
+  as.integer(.)
+
+df_sleep_new$Diastolic.Pressure <- df_sleep_new$Diastolic.Pressure %>%
+  as.integer(.)
+```
+
+```{r}
+df_sleep_new <- df_sleep_new %>% 
+  mutate(
+    Tension.Category = case_when(
+      Systolic.Pressure < 90 | Diastolic.Pressure < 60 ~ "Hypotension",
+      Systolic.Pressure >= 90 & Systolic.Pressure <= 119 & Diastolic.Pressure >= 60 & Diastolic.Pressure <= 79 ~ "Normal",
+      Systolic.Pressure > 90 | Diastolic.Pressure > 60 ~ "Hypertension"
+    )
+  )
+
+df_sleep_new$Tension.Category <- df_sleep_new$Tension.Category %>% 
+  as.factor(.)
+```
+
+```{r}
+df_sleep_clean <- df_sleep_new %>% 
+  distinct(.)
+```
+
+## Check Outliers
+1. Sleep Duration
+```{r}
+chart_1 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Sleep.Duration)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Sleep Duration") +
+  theme_minimal()
+
+ggplotly(chart_1)
+```
+
+2. Daily Steps
+```{r}
+chart_2 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Daily.Steps)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Daily Steps") +
+  theme_minimal()
+
+ggplotly(chart_2)
+```
+
+3. Heart Rate
+```{r}
+chart_3 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Heart.Rate)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Heart Rate") +
+  theme_minimal()
+
+ggplotly(chart_3)
+```
+
+4. Physical Activity Level
+```{r}
+chart_4 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Physical.Activity.Level)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Physical Activity Level") +
+  theme_minimal()
+
+ggplotly(chart_4)
+```
+
+5. Stress Level
+```{r}
+chart_5 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Stress.Level)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Stress Level") +
+  theme_minimal()
+
+ggplotly(chart_5)
+```
+
+6. Quality of Sleep
+```{r}
+chart_6 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Quality.of.Sleep)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Quality of Sleep") +
+  theme_minimal()
+
+ggplotly(chart_6)
+```
+
+Insight : there are some outliers in the data based on the chart we displayed (we group the data based on the Sleep Disorder because we consider it as the most compatible factor to gain insight from).
+
+Since we are aiming to keep the originality of the data we are using, we won't be handling the outliers.
+
+## Statistical Summary of Each Column
+```{r}
+df_sleep_clean %>% 
+  summary(.)
+```
+
+# DATA VISUALIZATION
+1. Sleep Disorder Composition based on Occupation
+```{r}
+vis_1 <- table(df_sleep_clean$Occupation, df_sleep_clean$Sleep.Disorder) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("Occupation :", Var1,
+                             "<br>Sleep Disorder :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0,  
+                                   vjust = 0.5,
+                                   hjust = 0.5), 
+        plot.margin = margin(t = 20)) +
+  labs(title = "Percentage of Sleep Disorder per Occupation",  
+       x = "Occupation", 
+       y = "Percentage", 
+       fill = "Sleep Disorder") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+ggplotly(vis_1, tooltip = "text")
+```
+Insight : Sales Representation has the highest percentage of Sleep Apnea, while Salesperson has the highest percentage of Insomnia.
+
+2. BMI Category Composition based on Occupation
+```{r}
+vis_2 <- table(df_sleep_clean$Occupation, df_sleep_clean$BMI.Category) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("Occupation :", Var1,
+                             "<br>BMI Category :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, 
+                                   vjust = 0.5,
+                                   hjust = 0.5), 
+        plot.margin = margin(t = 20)) +
+  labs(title = "Percentage of BMI Category per Occupation",  
+       x = "Occupation", 
+       y = "Percentage", 
+       fill = "BMI Category")+
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+ggplotly(vis_2, tooltip = "text")
+```
+Insight : Sales Representation has the highest percentage of Obese, while Salesperson, Manager, and Scientist has the highest percentage of Overweight.
+
+3. Sleep Disorder Composition based on BMI Category
+```{r}
+vis_3 <- table(df_sleep_clean$BMI.Category, df_sleep_clean$Sleep.Disorder) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("BMI Category :", Var1,
+                             "<br>Sleep Disorder :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Percentage of Sleep Disorder per BMI Category",  
+       x = "BMI Category", 
+       y = "Percentage", 
+       fill = "Sleep Disorder")
+
+ggplotly(vis_3, tooltip = "text")
+```
+Insight : Normal weighted people are more likely to have no sleep disorder than the other BMI categories, and there are no single person with obese that has no sleep disorder.
+
+4. Sleep Quality based on BMI Category
+```{r}
+vis_4 <- df_sleep_clean %>% 
+  ggplot(., aes(x = BMI.Category,
+                y = Quality.of.Sleep,
+                fill = BMI.Category)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Quality of Sleep based on BMI Category",
+       x = "BMI Category",
+       y = "Quality of Sleep",
+       fill = "BMI Category") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_4)
+```
+Insight : Normal weighted people have the best quality of sleep. People with the worst sleep quality are more likely to have higher BMI score/category.
+
+5. Sleep Duration based on BMI Category
+```{r}
+vis_5 <- df_sleep_clean %>% 
+  ggplot(., aes(x = BMI.Category,
+                y = Sleep.Duration,
+                fill = BMI.Category)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Sleep Duration based on BMI Category",  
+       x = "BMI Category", 
+       y = "Sleep Duration",
+       fill = "BMI Category") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_5)
+```
+Insight : Normal weighted people has the healthiest duration of sleep. People with shorter sleep duration are more likely to have higher BMI score/category.
+
+6. Age Distribution based on Sleep Disorder
+```{r}
+vis_6 <- df_sleep_clean %>% 
+  ggplot(., aes(x = Sleep.Disorder,
+                y = Age,
+                fill = Sleep.Disorder)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Age Distribution based on Sleep Disorder",  
+       x = "Sleep Disorder", 
+       y = "Age",
+       fill = "Sleep Disorder") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_6)
+```
+Insight : Older people are more likely to get Sleep Apnea than young people.
+
+# CORRELATION ANALYSIS
+```{r}
+heatmap <- df_sleep_clean %>% 
+  select_if(is.numeric) %>% 
+  cor() %>% 
+  melt() %>% 
+  ggplot(aes(x = Var1,
+             y = Var2,
+             fill = value,
+             label = round(value, 2),
+             text = paste("Variable 1 :", Var1,
+                          "<br>Variable 2 :", Var2,
+                          "<br>Correlation Coefficient :", round(value, 2)))) +
+  geom_tile(color = "white") +
+  geom_text(color = "black") +
+  scale_fill_gradient2(low = "#FF751A",
+                       mid = "white",
+                       high = "#3C7237", 
+                       midpoint = 0,
+                       limit = c(-1, 1),
+                       space = "Lab",
+                       name = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, 
+                                   vjust = 0.5,  
+                                   hjust = 0.5), 
+        axis.text.y = element_text(hjust = 1)) +
+  labs(title = "Correlation Heatmap",  
+       x = "", 
+       y = "") +
+  scale_x_discrete(labels = function(x) str_wrap(str_replace_all(x, "\\.", " "), width = 10)) +
+  scale_y_discrete(labels = function(x) str_wrap(str_replace_all(x, "\\.", " "), width = 10))
+
+ggplotly(heatmap, tooltip = "text")
+```
+
+Insight : 
+Positively correlated variables :
+- Sleep Duration and Quality of Sleep
+- Systolic and Diastolic Pressure
+- Physical Activity Level and Daily Steps
+Negatively correlated variables : 
+- Stress Level and Quality of Sleep
+- Stress Level and Sleep Duration
+- Quality of Sleep and Heart Rate
+
+```{r}
+ui <- fluidPage(
+  # Website Theme
+  theme = shinytheme("cosmo"),
+  
+  title = "Assurance of Learning Data Mining and Visualization Group 3",
+  
+  # Page Title
+  titlePanel(tags$b("Assurance of Learning Data Mining and Visualization Group 3")),
+  
+  # Navigation Bar
+  navbarPage(
+    "Navigation",
+    
+    # Display Group
+    
+    tabPanel(
+      "Group Members",
+      
+      HTML("<h4><b>Class : LG09</b></h4>
+      <h4><b>Group : 3</b></h4>
+      <h5><b>1. Clarissa Beatrice Kosasih / 2702209350</b></h5>
+      <h5><b>2. Marcelline Cathrine Wilison / 2702210604 </b></h5>
+      <h5><b>3. Miecel Alicia Angel J / 2702327601</b></h5>
+      <h5><b>4. William / 2702225373</b></h5>
+      <h5><b>5. William Darma Wijaya / 2702218645</b></h5>"),
+    ),
+    
+    # Display Raw Dataset
+    tabPanel(
+      "Raw Dataset",
+      
+      HTML("<h3><b>Sleep Health and Lifestyle Dataset</b></h3>"),
+      
+      HTML("<h4><b>Code</b></h4>"),
+      verbatimTextOutput("code1"),
+      
+      HTML("<h4><b>Output</b></h4>"),
+      DTOutput("dataset"),
+    ),
+    
+    # Data Preparation
+    tabPanel(
+      "Data Preparation",
+      
+      tabsetPanel(
+        
+        # Assess General Characteristics
+        tabPanel(
+          tags$b("Assess General Characteristics"),
+          
+          HTML("<h3><b>Dataset Structures</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code2"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          verbatimTextOutput("str"),
+          
+          HTML("<h3><b>Remove Person.ID Column</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code3"),
+          
+          HTML("<h3><b>Change Categorical Column to Factor Data Type</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code4"),
+          
+          HTML("<h3><b>Handle Inconsistency Data</b></h3>"),
+          HTML("BMI.Category column has inconsistency in 'Normal' and 'Normal Weight' Data."),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code5"),
+          
+          HTML("<h4><b>Dataset Structure</b></h4>"),
+          verbatimTextOutput("str2"),
+          
+          HTML("<h4><b>Dataset</b></h4>"),
+          DTOutput("dataset2"),
+        ),
+        
+        # Feature Engineering
+        tabPanel(
+          tags$b("Feature Engineering"),
+          
+          HTML("<h3><b>Separate Systolic and Diastolic Pressure</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code6"),
+          
+          HTML("<h3><b>Create Tension Categories</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code16"),
+          
+          HTML("<h3><b>Dataset</b></h3>"),
+          DTOutput("dataset3"),
+        ),
+        
+        # Data Cleaning
+        tabPanel(
+          tags$b("Data Cleaning"),
+          
+          HTML("<h3><b>Check Missing Values</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code7"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          verbatimTextOutput("checkmiss"),
+          
+          HTML("<b>Insight :
+               </br>There are no missing values in the dataset.</b>"),
+          
+          HTML("<h3><b>Remove Duplicates</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code8"),
+          
+          HTML("<h3><b>Get Statistical Summary</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code9"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          verbatimTextOutput("statsum"),
+          
+          HTML("<h3><b>Check Outliers</b></h3>"),
+          
+          HTML("<h4><b>Sleep Duration</br>Code</b></h4>"),
+          verbatimTextOutput("code10"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot1", height = "500px", width = "700px"),
+          
+          HTML("<h4><b>Daily Steps</br>Code</b></h4>"),
+          verbatimTextOutput("code11"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot2", height = "500px", width = "700px"),
+          
+          HTML("<h4><b>Heart Rate</br>Code</b></h4>"),
+          verbatimTextOutput("code12"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot3", height = "500px", width = "700px"),
+          
+          HTML("<h4><b>Physical Activity Level</br>Code</b></h4>"),
+          verbatimTextOutput("code13"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot4", height = "500px", width = "700px"),
+          
+          HTML("<h4><b>Stress Level</br>Code</b></h4>"),
+          verbatimTextOutput("code14"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot5", height = "500px", width = "700px"),
+          
+          HTML("<h4><b>Quality of Sleep</br>Code</b></h4>"),
+          verbatimTextOutput("code15"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("plot6", height = "500px", width = "700px"),
+          
+          HTML("<b>Insight :
+          </br>There are some outliers in the data based on the chart we displayed. 
+          </br>We group the data based on the Sleep Disorder because we consider it as the most compatible factor to gain insight from.
+          </br>Since we are aiming to keep the originality of the data we are using, we won't be handling the outliers.</b></br></br></br></br></br>"),
+        ),
+      ),
+    ),
+    
+    # Data Visualization
+    tabPanel(
+      "Data Visualization",
+      
+      tabsetPanel(
+        
+        # Composition Graphs
+        tabPanel(
+          tags$b("Composition Graphs"),
+          
+          # Visualization 1
+          HTML("<h3><b>Sleep Disorder Composition based on Occupation</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code17"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis1", height = "700px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Sales Representation has the highest percentage of Sleep Apnea, while Salesperson has the highest percentage of Insomnia.</b>"),
+          
+          # Visualization 2
+          HTML("<h3><b>BMI Category Composition based on Occupation</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code18"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis2", height = "700px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Sales Representation has the highest percentage of Obese, while Salesperson, Manager, and Scientist has the highest percentage of Overweight.</b>"),
+          
+          # Visualization 3
+          HTML("<h3><b>Sleep Disorder Composition based on BMI Category</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code19"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis3", height = "700px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Normal weighted people are more likely to have no sleep disorder than the other BMI categories, and there are no single person with obese that has no sleep disorder.</b></br></br></br>"),
+        ),
+          
+        # Distribution Graphs
+        tabPanel(
+          tags$b("Distribution Graphs"),
+          
+          # Visualization 4
+          HTML("<h3><b>Sleep Quality based on BMI Category</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code20"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis4", height = "500px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Normal weighted people have the best quality of sleep.
+               </br>People with the worst sleep quality are more likely to have higher BMI score/category.</b>"),
+          
+          # Visualization 5
+          HTML("<h3><b>Sleep Duration based on BMI Category</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code21"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis5", height = "500px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Normal weighted people has the healthiest duration of sleep.
+               </br>People with shorter sleep duration are more likely to have higher BMI score/category.</b>"),
+          
+          # Visualization 5
+          HTML("<h3><b>Age Distribution based on Sleep Disorder</b></h3>"),
+          
+          HTML("<h4><b>Code</b></h4>"),
+          verbatimTextOutput("code22"),
+          
+          HTML("<h4><b>Output</b></h4>"),
+          plotlyOutput("vis6", height = "500px", width = "980px"),
+          
+          HTML("<b>Insight : 
+               </br>Older people are more likely to get Sleep Apnea than young people.</b></br></br></br>"),
+        ),
+      ),
+    ),
+      
+    # Correlation Analysis
+    tabPanel(
+      "Correlation Analysis",
+      HTML("<h3><b>Sleep Health and Lifestyle Heatmap</b></h3>"),
+      HTML("<h4><b>Code</b></h4>"),
+      verbatimTextOutput("code24"),
+          
+      HTML("<h4><b>Output</b></h4>"),
+      plotlyOutput("heatmap", height = "700px", width = "980px"),
+      
+      HTML("<b>Insight :
+      </br>Positively correlated variables :
+      </br>- Sleep Duration and Quality of Sleep
+      </br>- Systolic and Diastolic Pressure
+      </br>- Physical Activity Level and Daily Steps
+      </br>Negatively correlated variables : 
+      </br>- Stress Level and Quality of Sleep
+      </br>- Stress Level and Sleep Duration
+      </br>- Quality of Sleep and Heart Rate</b></br></br></br>"),
+    ),
+      
+    # Linear Regression
+    tabPanel(
+      "Linear Regression",
+      
+      sidebarPanel(
+        
+        selectInput("variable1", label = "X Axis:",
+                    choices = names(df_sleep_clean)[sapply(df_sleep_clean, is.numeric)]),
+        
+        selectInput("variable2", label = "Y Axis:",
+                    choices = names(df_sleep_clean)[sapply(df_sleep_clean, is.numeric)]),
+        
+        actionButton("submitbutton", "Submit", class = "btn btn-primary"),
+      ),
+      mainPanel(
+        plotlyOutput("visualization"),
+        verbatimTextOutput("summary")
+      ),
+    ),
+    
+    # Hypothesis Testing
+    tabPanel(
+      "Hypothesis Testing",
+      
+      sidebarPanel(
+        
+        selectInput("variable1h", label = "Dependent Variable :",
+                    choices = names(df_sleep_clean)[sapply(df_sleep_clean, is.numeric)]),
+        
+        selectInput("variable2h", label = "Independent Variable :",
+                    choices = names(df_sleep_clean)[sapply(df_sleep_clean, is.numeric)]),
+        
+        actionButton("submitbutton2", "Submit", class = "btn btn-primary"),
+      ),
+      mainPanel(
+        HTML("<h4><b>P-Value</b></h4>"),
+        verbatimTextOutput("htest")
+      ),
+    ),
+  ),
+)
+```
+
+
+```{r}
+server <- function(input, output) {
+  output$code1 <- renderPrint({
+  code <- 'df_sleep <- read.csv("Sleep_health_and_lifestyle_dataset.csv", sep=",", header = TRUE)\ndf_sleep'
+    cat(code)
+  })
+  
+  output$dataset <- renderDT({
+    df_sleep
+  })
+  
+  output$code2 <- renderPrint({
+    code <- 'str(df_sleep)'
+    cat(code)
+  })
+  
+  output$str <- renderPrint({
+    str(df_sleep)
+  })
+  
+  output$code3 <- renderPrint({
+    code <- 'df_sleep2 <- df_sleep %>% 
+  select(-c(Person.ID))'
+    cat(code)
+  })
+  
+  output$code4 <- renderPrint({
+    code <- 'df_sleep2$Gender <- df_sleep2$Gender %>%
+  as.factor(.)
+    
+df_sleep2$Occupation <- df_sleep2$Occupation %>% 
+  as.factor(.)
+  
+df_sleep2$BMI.Category <- df_sleep2$BMI.Category %>% 
+  factor(., levels = c("Normal", "Normal Weight", "Overweight", "Obese"))
+  
+df_sleep$Sleep.Disorder <- df_sleep2$Sleep.Disorder %>% 
+  factor(., levels = c("None", "Insomnia", "Sleep Apnea"))'
+    cat(code)
+  })
+  
+  output$code5 <- renderPrint({
+    code <- 'df_sleep2 <- df_sleep2 %>%
+  mutate(BMI.Category = recode(BMI.Category, "Normal Weight" = "Normal"))'
+    cat(code)
+  })
+  
+  output$str2 <- renderPrint({
+    str(df_sleep2)
+  })
+  
+  output$dataset2 <- renderDT({
+    df_sleep2
+  })
+  
+  output$code6 <- renderPrint({
+    code <- 'df_sleep_new <- df_sleep2 %>% 
+  separate_wider_delim(Blood.Pressure, delim = "/", names = c("Systolic.Pressure", "Diastolic.Pressure"))
+
+df_sleep_new$Systolic.Pressure <- df_sleep_new$Systolic.Pressure %>% 
+  as.integer(.)
+
+df_sleep_new$Diastolic.Pressure <- df_sleep_new$Diastolic.Pressure %>%
+  as.integer(.)'
+    cat(code)
+  })
+  
+  output$code16 <- renderPrint({
+    code <- 'df_sleep_new <- df_sleep_new %>% 
+  mutate(
+    Tension.Category = case_when(
+      Systolic.Pressure < 90 | Diastolic.Pressure < 60 ~ "Hypotension",
+      Systolic.Pressure >= 90 & Systolic.Pressure <= 119 & Diastolic.Pressure >= 60 & Diastolic.Pressure <= 79 ~ "Normal",
+      Systolic.Pressure > 90 | Diastolic.Pressure > 60 ~ "Hypertension"
+    )
+  )
+
+df_sleep_new$Tension.Category <- df_sleep_new$Tension.Category %>% 
+  as.factor(.)'
+    cat(code)
+  })
+  
+  output$dataset3 <- renderDT({
+    df_sleep_new
+  })
+  
+  output$code7 <- renderPrint({
+    code <- 'sum(is.na(df_sleep_new))'
+    cat(code)
+  })
+  
+  output$checkmiss <- renderPrint({
+    sum(is.na(df_sleep_new))
+  })
+  
+  output$code8 <- renderPrint({
+    code <- 'df_sleep_clean <- df_sleep_new %>% 
+  distinct(.)'
+    cat(code)
+  })
+  
+  output$code9 <- renderPrint({
+    code <- 'df_sleep_clean %>% 
+  summary(.)'
+    cat(code)
+  })
+  
+  output$statsum <- renderPrint({
+    df_sleep_clean %>% 
+  summary(.)
+  })
+  
+  output$code10 <- renderPrint({
+    code <- 'chart_1 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Sleep.Duration)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Sleep Duration") +
+  theme_minimal()
+
+ggplotly(chart_1)'
+    cat(code)
+  })
+  
+  output$plot1 <- renderPlotly({
+    ggplotly(chart_1)
+  })
+  
+  output$code11 <- renderPrint({
+    code <- 'chart_2 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Daily.Steps)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Daily Steps") +
+  theme_minimal()
+
+ggplotly(chart_2)'
+    cat(code)
+  })
+  
+  output$plot2 <- renderPlotly({
+    ggplotly(chart_2)
+  })
+  
+  output$code12 <- renderPrint({
+    code <- 'chart_3 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Heart.Rate)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Heart Rate") +
+  theme_minimal()
+
+ggplotly(chart_3)'
+    cat(code)
+  })
+  
+  output$plot3 <- renderPlotly({
+    ggplotly(chart_3)
+  })
+  
+  output$code13 <- renderPrint({
+    code <- 'chart_4 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Physical.Activity.Level)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Physical Activity Level") +
+  theme_minimal()
+
+ggplotly(chart_4)'
+    cat(code)
+  })
+  
+  output$plot4 <- renderPlotly({
+    ggplotly(chart_4)
+  })
+  
+  output$code14 <- renderPrint({
+    code <- 'chart_5 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Stress.Level)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Stress Level") +
+  theme_minimal()
+
+ggplotly(chart_5)'
+    cat(code)
+  })
+  
+  output$plot5 <- renderPlotly({
+    ggplotly(chart_5)
+  })
+  
+  output$code15 <- renderPrint({
+    code <- 'chart_6 <- df_sleep_clean %>% 
+  ggplot(mapping = aes(x = Sleep.Disorder,
+                       y = Quality.of.Sleep)) +
+  geom_boxplot() +
+  labs(x = "Sleep Disorder", y = "Quality of Sleep") +
+  theme_minimal()
+
+ggplotly(chart_6)'
+    cat(code)
+  })
+  
+  output$plot6 <- renderPlotly({
+    ggplotly(chart_6)
+  })
+  
+  output$code17 <- renderPrint({
+    code <- 'vis_1 <- table(df_sleep_clean$Occupation, df_sleep_clean$Sleep.Disorder) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("Occupation :", Var1,
+                             "<br>Sleep Disorder :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0,  
+                                   vjust = 0.5,
+                                   hjust = 0.5), 
+        plot.margin = margin(t = 20)) +
+  labs(title = "Percentage of Sleep Disorder per Occupation",  
+       x = "Occupation", 
+       y = "Percentage", 
+       fill = "Sleep Disorder") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+ggplotly(vis_1, tooltip = "text")'
+    cat(code)
+  })
+  
+  output$vis1 <- renderPlotly({
+    ggplotly(vis_1, tooltip = "text")
+  })
+  
+  output$code18 <- renderPrint({
+    code <- 'vis_2 <- table(df_sleep_clean$Occupation, df_sleep_clean$BMI.Category) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("Occupation :", Var1,
+                             "<br>BMI Category :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, 
+                                   vjust = 0.5,
+                                   hjust = 0.5), 
+        plot.margin = margin(t = 20)) +
+  labs(title = "Percentage of BMI Category per Occupation",  
+       x = "Occupation", 
+       y = "Percentage", 
+       fill = "BMI Category")+
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+ggplotly(vis_2, tooltip = "text")'
+    cat(code)
+  })
+  
+  output$vis2 <- renderPlotly({
+    ggplotly(vis_2, tooltip = "text")
+  })
+  
+  output$code19 <- renderPrint({
+    code <- 'vis_3 <- table(df_sleep_clean$BMI.Category, df_sleep_clean$Sleep.Disorder) %>% 
+  as.data.frame(.) %>% 
+  group_by(Var1) %>% 
+  mutate(Total = sum(Freq),
+         Percentage = Freq * 100 / Total) %>% 
+  ungroup(.) %>% 
+  ggplot(., aes(x = Var1, 
+                y = Freq, 
+                fill = Var2, 
+                text = paste("BMI Category :", Var1,
+                             "<br>Sleep Disorder :", Var2,
+                             "<br>Percentage :", round(Percentage, 1), "%"))) +
+  geom_bar(position = "fill", 
+           stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Percentage of Sleep Disorder per BMI Category",  
+       x = "BMI Category", 
+       y = "Percentage", 
+       fill = "Sleep Disorder")
+
+ggplotly(vis_3, tooltip = "text")'
+    cat(code)
+  })
+  
+  output$vis3 <- renderPlotly({
+    ggplotly(vis_3, tooltip = "text")
+  })
+  
+  output$code20 <- renderPrint({
+    code <- 'vis_4 <- df_sleep_clean %>% 
+  ggplot(., aes(x = BMI.Category,
+                y = Quality.of.Sleep,
+                fill = BMI.Category)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Quality of Sleep based on BMI Category",
+       x = "BMI Category",
+       y = "Quality of Sleep",
+       fill = "BMI Category") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_4)'
+    cat(code)
+  })
+  
+  output$vis4 <- renderPlotly({
+    ggplotly(vis_4)
+  })
+  
+  output$code21 <- renderPrint({
+    code <- 'vis_5 <- df_sleep_clean %>% 
+  ggplot(., aes(x = BMI.Category,
+                y = Sleep.Duration,
+                fill = BMI.Category)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Sleep Duration based on BMI Category",  
+       x = "BMI Category", 
+       y = "Sleep Duration",
+       fill = "BMI Category") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_5)'
+    cat(code)
+  })
+  
+  output$vis5 <- renderPlotly({
+    ggplotly(vis_5)
+  })
+  
+  output$code22 <- renderPrint({
+    code <- 'vis_6 <- df_sleep_clean %>% 
+  ggplot(., aes(x = Sleep.Disorder,
+                y = Age,
+                fill = Sleep.Disorder)) +
+  geom_boxplot(width = 5) +
+  coord_flip() +
+  scale_fill_manual(values = c("#9BDF96", "#5D9D57", "#3C7237")) +
+  theme_minimal() +
+  labs(title = "Age Distribution based on Sleep Disorder",  
+       x = "Sleep Disorder", 
+       y = "Age",
+       fill = "Sleep Disorder") +
+  expand_limits(x = 0, y = 0)
+
+ggplotly(vis_6)'
+    cat(code)
+  })
+  
+  output$vis6 <- renderPlotly({
+    ggplotly(vis_6)
+  })
+  
+  output$code24 <- renderPrint({
+    code <- 'heatmap <- df_sleep_clean %>% 
+  select_if(is.numeric) %>% 
+  cor() %>% 
+  melt() %>% 
+  ggplot(aes(x = Var1,
+             y = Var2,
+             fill = value,
+             label = round(value, 2),
+             text = paste("Variable 1 :", Var1,
+                          "<br>Variable 2 :", Var2,
+                          "<br>Correlation Coefficient :", round(value, 2)))) +
+  geom_tile(color = "white") +
+  geom_text(color = "black") +
+  scale_fill_gradient2(low = "#FF751A",
+                       mid = "white",
+                       high = "#3C7237", 
+                       midpoint = 0,
+                       limit = c(-1, 1),
+                       space = "Lab",
+                       name = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, 
+                                   vjust = 0.5,  
+                                   hjust = 0.5), 
+        axis.text.y = element_text(hjust = 1)) +
+  labs(title = "Correlation Heatmap",  
+       x = "", 
+       y = "") +
+  scale_x_discrete(labels = function(x) str_wrap(str_replace_all(x, "\\.", " "), width = 10)) +
+  scale_y_discrete(labels = function(x) str_wrap(str_replace_all(x, "\\.", " "), width = 10))
+
+ggplotly(heatmap, tooltip = "text")'
+    cat(code)
+  })
+  
+  output$heatmap <- renderPlotly({
+    ggplotly(heatmap, tooltip = "text")
+  })
+  
+  observeEvent(input$submitbutton, {
+    reg <- df_sleep_clean %>% 
+  ggplot(., aes_string(x = input$variable1,
+                       y = input$variable2)) +
+  geom_jitter(color = "#5D9D57") +
+  geom_smooth(method = "lm",
+              se = FALSE,
+              color = "red") +
+  labs(title = paste("Linear Regression", input$variable1, "vs",  input$variable2),
+       x = paste(input$variable1),
+       y = paste(input$variable2))
+      
+    output$visualization <- renderPlotly({
+      ggplotly(reg)
+    })
+    
+    formula <- as.formula(paste(input$variable1, "~", input$variable2))
+    model <- lm(formula, data = df_sleep_clean)
+    
+    output$summary <- renderPrint({
+      summary(model)
+    })
+  })
+  
+  observeEvent(input$submitbutton2, {
+    regression <- reactive({
+      lm(formula = paste(input$variable1h, "~", input$variable2h), data = df_sleep_clean)
+    })
+    
+    output$htest <- renderPrint({
+      summary_coef <- summary(regression())
+      p_value <- summary_coef$coefficients[input$variable2h, "Pr(>|t|)"]
+      print(p_value)
+      
+      if (p_value < 0.05) {
+        print(paste(input$variable2h, "affects", input$variable1h))
+      }
+      else {
+        print(paste(input$variable2h, "does not affect", input$variable1h))
+      }
+    })
+  })
+  
+  
+}
+```
+
+
+```{r}
+shinyApp(ui = ui,
+         server = server)
+```
+
+
+
+
