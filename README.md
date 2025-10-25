@@ -20,6 +20,7 @@ This project is an interactive web application built using R Shiny to allow user
 3. Reactivity (Shiny): Using server.R to dynamically update plots and model summaries based on user input
 
 ## Results
+![Shiny Apps](assets/Shiny-App-DM.png)
 1. A functional real-time dashboard to allows non-technical users to explore
 2. Interactive visualizations that help users immediately see the distribution and correlation between different lifestyle and sleep health factors
 
