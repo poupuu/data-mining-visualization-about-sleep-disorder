@@ -8,7 +8,7 @@ This project is an interactive web application built using R Shiny to allow user
 2. Provide a simple, code-free interface for users to perform statistical analysis to get immediate feedback on variable correlations
 
 ## Methodology
-1. EDA & Preprocessing
+1. EDA & Preprocessing (checking category variable anomaly, feature engineering (systolic, diastolic, tension category, outliers)
 2. App Development navigation bar page (About, Dataset, Visualization, Modeling)
 3. Visualization
 4. Modeling
